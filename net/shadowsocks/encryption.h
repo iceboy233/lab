@@ -122,7 +122,32 @@ private:
     std::optional<SessionKey> write_key_;
 };
 
+class AeadDatagram {
+public:
+    AeadDatagram(
+        udp::socket &socket, const AeadMasterKey &master_key);
+
+    void receive(
+        std::function<void(
+            std::error_code, absl::Span<const uint8_t>, 
+            const udp::endpoint&)> callback);
+    void send(
+        absl::Span<const uint8_t> chunk, const udp::endpoint &ep,
+        std::function<void(std::error_code)> callback);
+
+private:
+    udp::socket &socket_;
+    const AeadMasterKey &master_key_;
+    std::unique_ptr<uint8_t[]> read_buffer_;
+    static constexpr size_t read_buffer_size_ = 65536;
+    std::unique_ptr<uint8_t[]> write_buffer_;
+    static constexpr size_t write_buffer_size_ = 65536;
+    std::optional<AeadSessionKey> read_key_;
+    std::optional<AeadSessionKey> write_key_;
+    udp::endpoint ep_;
+};
+
 }  // namespace shadowsocks
 }  // namespace net
 
-#endif  // _NET_SHADOWSOCKS_AES_CRYPTO_H
+#endif  // _NET_SHADOWSOCKS_AEAD_CRYPTO_H

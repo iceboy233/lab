@@ -6,6 +6,7 @@
 #include "net/asio-flags.h"
 #include "net/shadowsocks/encryption.h"
 #include "net/shadowsocks/tcp-server.h"
+#include "net/shadowsocks/udp-server.h"
 
 DEFINE_FLAG(net::address, ip, net::address_v4::loopback(), "");
 DEFINE_FLAG(uint16_t, port, 8388, "");
@@ -34,5 +35,9 @@ int main(int argc, char *argv[]) {
         master_key,
         salt_filter,
         options);
+    UdpServer udp_server(
+        io_context.get_executor(),
+        net::udp::endpoint(flags::ip, flags::port),
+        master_key);
     io_context.run();
 }
