@@ -73,7 +73,7 @@ cc_library(
     srcs = ["udp-server.cc"],
     hdrs = ["udp-server.h"],
     deps = [
-        ":aead-crypto",
+        ":encryption",
         ":wire-structs",
         "@com_google_absl//absl/types:span",
         "@com_google_absl//absl/container:flat_hash_map",

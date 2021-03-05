@@ -258,20 +258,19 @@ void EncryptedStream::write_payload(
         });
 }
 
-AeadDatagram::AeadDatagram(
-    udp::socket &socket, const AeadMasterKey &master_key)
+EncryptedDatagram::EncryptedDatagram(
+    udp::socket &socket, const MasterKey &master_key)
     : socket_(socket),
       master_key_(master_key),
       read_buffer_(std::make_unique<uint8_t[]>(read_buffer_size_)),
       write_buffer_(std::make_unique<uint8_t[]>(write_buffer_size_)) {}
 
-void AeadDatagram::receive(
+void EncryptedDatagram::receive_from(
     std::function<void(
         std::error_code, absl::Span<const uint8_t>, 
         const udp::endpoint&)> callback) {
     socket_.async_receive_from(
-        boost::asio::buffer(read_buffer_.get(), read_buffer_size_),
-        ep_,
+        boost::asio::buffer(read_buffer_.get(), read_buffer_size_), ep_,
         [this, callback = std::move(callback)](
             std::error_code ec, size_t bytes_trans) {
             if (ec) {
@@ -284,17 +283,17 @@ void AeadDatagram::receive(
             if (!read_key_->decrypt(
                 {&read_buffer_[salt_size], payload_len},
                 &read_buffer_[bytes_trans - 16],
-                &read_buffer_[0])) {
+                &read_buffer_[salt_size])) {
                 callback(
                     std::make_error_code(std::errc::result_out_of_range),
                     {}, ep_);
                 return;
             }
-            callback({}, {&read_buffer_[0], payload_len}, ep_);
+            callback({}, {&read_buffer_[salt_size], payload_len}, ep_);
         });
 }
 
-void AeadDatagram::send(
+void EncryptedDatagram::send_to(
     absl::Span<const uint8_t> chunk, const udp::endpoint &ep,
     std::function<void(std::error_code)> callback) {
     const size_t salt_size = master_key_.method().salt_size;
@@ -304,7 +303,7 @@ void AeadDatagram::send(
         chunk, &write_buffer_[salt_size],
         &write_buffer_[salt_size + chunk.size()]);
     socket_.async_send_to(
-        boost::asio::buffer(write_buffer_.get(), write_buffer_size_),
+        buffer(write_buffer_.get(), salt_size + chunk.size() + 16), 
         ep,
         [this, callback = std::move(callback)](std::error_code ec, size_t) {
             callback(ec);

@@ -2,13 +2,11 @@
 #define _NET_SHADOWSOCKS_UDP_SERVER_H
 
 #include <list>
-#include <unordered_map>
-#include <map>
 
 #include "absl/container/flat_hash_map.h"
 #include "net/asio.h"
 #include "net/asio-hash.h"
-#include "net/shadowsocks/aead-crypto.h"
+#include "net/shadowsocks/encryption.h"
 
 namespace net {
 namespace shadowsocks {
@@ -20,19 +18,26 @@ public:
     UdpServer(
         const any_io_executor &executor,
         const udp::endpoint &endpoint,
-        const AeadMasterKey &master_key);
+        const MasterKey &master_key);
 
     void receive();
+    void send(
+        absl::Span<const uint8_t> chunk, const udp::endpoint& to_ep,
+        std::function<void(std::error_code)> callback);
 
 private:
     class Connection;
 
-    any_io_executor executor_;
-    const AeadMasterKey &master_key_;
-    udp::socket socket_;
-    AeadDatagram aead_datagram_;
+    void forward_connection(
+        absl::Span<const uint8_t> chunk, const udp::endpoint& from_ep);
 
-    absl::flat_hash_map<udp::endpoint, Connection*> client_ep_;
+    any_io_executor executor_;
+    const MasterKey &master_key_;
+    udp::socket socket_;
+    EncryptedDatagram encrypted_datagram_;
+
+    absl::flat_hash_map<
+        udp::endpoint, Connection*> client_eps_;
 };
 
 
