@@ -130,6 +130,7 @@ void UdpServer::Connection::forward_parse(absl::Span<const uint8_t> chunk) {
                 address_v4(header->ipv4_address),
                 (chunk[5]) << 8 | chunk[6]));
         break;
+    // TODO: support wire::AddressType::host
     case wire::AddressType::ipv6:
         if (chunk.size() < 19) {
             close_and_restart();
