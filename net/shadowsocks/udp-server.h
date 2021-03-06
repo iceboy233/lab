@@ -22,22 +22,20 @@ public:
 
     void receive();
     void send(
-        absl::Span<const uint8_t> chunk, const udp::endpoint& to_ep,
+        absl::Span<const uint8_t> chunk, const udp::endpoint &to_ep,
         std::function<void(std::error_code)> callback);
 
 private:
     class Connection;
 
-    void forward_connection(
-        absl::Span<const uint8_t> chunk, const udp::endpoint& from_ep);
+    void forward_dispatch(
+        absl::Span<const uint8_t> chunk, const udp::endpoint &from_ep);
 
     any_io_executor executor_;
     const MasterKey &master_key_;
     udp::socket socket_;
     EncryptedDatagram encrypted_datagram_;
-
-    absl::flat_hash_map<
-        udp::endpoint, Connection*> client_eps_;
+    absl::flat_hash_map<udp::endpoint, Connection *> client_eps_;
 };
 
 

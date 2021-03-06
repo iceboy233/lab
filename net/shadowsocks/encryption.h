@@ -130,7 +130,7 @@ public:
     void receive_from(
         std::function<void(
             std::error_code, absl::Span<const uint8_t>, 
-            const udp::endpoint&)> callback);
+            const udp::endpoint &)> callback);
     void send_to(
         absl::Span<const uint8_t> chunk, const udp::endpoint &ep,
         std::function<void(std::error_code)> callback);

@@ -268,21 +268,21 @@ EncryptedDatagram::EncryptedDatagram(
 void EncryptedDatagram::receive_from(
     std::function<void(
         std::error_code, absl::Span<const uint8_t>, 
-        const udp::endpoint&)> callback) {
+        const udp::endpoint &)> callback) {
     socket_.async_receive_from(
-        boost::asio::buffer(read_buffer_.get(), read_buffer_size_), ep_,
+        buffer(read_buffer_.get(), read_buffer_size_), ep_,
         [this, callback = std::move(callback)](
-            std::error_code ec, size_t bytes_trans) {
+            std::error_code ec, size_t size) {
             if (ec) {
                 callback(ec, {}, ep_);
                 return;
             }
             size_t salt_size = master_key_.method().salt_size;
-            size_t payload_len = bytes_trans - salt_size - 16;
+            size_t payload_len = size - salt_size - 16;
             read_key_.emplace(master_key_, read_buffer_.get());
             if (!read_key_->decrypt(
                 {&read_buffer_[salt_size], payload_len},
-                &read_buffer_[bytes_trans - 16],
+                &read_buffer_[size - 16],
                 &read_buffer_[salt_size])) {
                 callback(
                     std::make_error_code(std::errc::result_out_of_range),
