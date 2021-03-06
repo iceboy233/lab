@@ -20,7 +20,7 @@ class UdpServer::Connection : public boost::intrusive_ref_counter<
     Connection, boost::thread_unsafe_counter> {
 public:
     Connection(
-        UdpServer &server, const udp::endpoint &client_ep, 
+        UdpServer &server, const udp::endpoint &client_endpoint, 
         absl::Span<const uint8_t> first_chunk);
     ~Connection();
 
@@ -28,92 +28,92 @@ public:
 
 private:
     void forward_send(
-        absl::Span<const uint8_t> chunk, const udp::endpoint &to_ep);
+        absl::Span<const uint8_t> chunk, const udp::endpoint &endpoint);
     void backward_receive();
     void backward_send(size_t payload_size);
-    void setup_timer();
+    void wait();
     void close();
 
     UdpServer &server_;
     udp::socket remote_socket_;
     steady_timer timer_;
-    udp::endpoint client_ep_;
-    udp::endpoint remote_ep_;
+    udp::endpoint client_endpoint_;
+    udp::endpoint remote_endpoint_;
     std::unique_ptr<uint8_t[]> backward_buffer_;
     static constexpr size_t backward_buffer_size_ = 65535 - 48;
     static constexpr size_t reserve_header_size_ = 19;
-    static constexpr std::chrono::duration expire_time_ 
-        = std::chrono::seconds(120);
 };
 
 
 UdpServer::UdpServer(
     const any_io_executor &executor,
     const udp::endpoint &endpoint,
-    const MasterKey &master_key)
+    const MasterKey &master_key,
+    SaltFilter &salt_filter,
+    const Options &options)
     : executor_(executor),
       master_key_(master_key),
+      salt_filter_(salt_filter),
+      options_(options),
       socket_(executor, endpoint),
-      encrypted_datagram_(socket_, master_key) {
+      encrypted_datagram_(socket_, master_key, salt_filter) {
     receive();
 }
 
 void UdpServer::receive() {
     encrypted_datagram_.receive_from(
-    [this] (
-        std::error_code ec, absl::Span<const uint8_t> chunk,
-        const udp::endpoint& from_ep) {
-        if (ec) {
-            receive();
-            return;
-        }
-        forward_dispatch(chunk, from_ep);
-    });
+        [this] (
+            std::error_code ec, absl::Span<const uint8_t> chunk,
+            const udp::endpoint &endpoint) {
+            if (ec) {
+                receive();
+                return;
+            }
+            forward_dispatch(chunk, endpoint);
+        });
 }
 
 void UdpServer::send(
-    absl::Span<const uint8_t> chunk, const udp::endpoint &to_ep,
+    absl::Span<const uint8_t> chunk, const udp::endpoint &endpoint,
     std::function<void(std::error_code)> callback) {
-    encrypted_datagram_.send_to(chunk, to_ep,
+    encrypted_datagram_.send_to(chunk, endpoint,
         [callback = std::move(callback)] (std::error_code ec) {
             callback(ec);
         });
 }
 
 void UdpServer::forward_dispatch(
-    absl::Span<const uint8_t> chunk, const udp::endpoint &from_ep) {
-    auto iter = client_eps_.find(from_ep);
-    if (iter != client_eps_.end()) {
+    absl::Span<const uint8_t> chunk, const udp::endpoint &client_endpoint) {
+    auto iter = client_endpoints_.find(client_endpoint);
+    if (iter != client_endpoints_.end()) {
         iter->second->forward_parse(chunk);
     } else {
         boost::intrusive_ptr<Connection> connection(
-            new Connection(*this, from_ep, chunk));
+            new Connection(*this, client_endpoint, chunk));
     }
 }
 
 UdpServer::Connection::Connection(
-    UdpServer &server, const udp::endpoint &client_ep, 
+    UdpServer &server, const udp::endpoint &client_endpoint, 
     absl::Span<const uint8_t> first_chunk)
     : server_(server),
       remote_socket_(server_.executor_),
       timer_(server_.executor_),
-      client_ep_(client_ep),
+      client_endpoint_(client_endpoint),
       backward_buffer_(std::make_unique<uint8_t[]>(backward_buffer_size_)) {
-    server_.client_eps_.emplace(client_ep_, this);
-    timer_.expires_from_now(expire_time_);
+    server_.client_endpoints_.emplace(client_endpoint_, this);
     forward_parse(first_chunk);
     backward_receive();
-    setup_timer();
 }
 
 UdpServer::Connection::~Connection() {
     close();
-    server_.client_eps_.erase(client_ep_);
+    server_.client_endpoints_.erase(client_endpoint_);
 }
 
 void UdpServer::Connection::forward_parse(absl::Span<const uint8_t> chunk) {
     // Parse address, assuming the whole address is in the first chunk.
-    timer_.expires_from_now(expire_time_);
+    wait();
     if (chunk.size() < 1) {
         server_.receive();
         return;
@@ -153,9 +153,9 @@ void UdpServer::Connection::forward_parse(absl::Span<const uint8_t> chunk) {
 }
 
 void UdpServer::Connection::forward_send(
-    absl::Span<const uint8_t> chunk, const udp::endpoint &to_ep) {
+    absl::Span<const uint8_t> chunk, const udp::endpoint &endpoint) {
     remote_socket_.async_send_to(
-        buffer(chunk.data(), chunk.size()), to_ep,
+        buffer(chunk.data(), chunk.size()), endpoint,
         [connection = boost::intrusive_ptr<Connection>(this)](
             std::error_code ec, size_t) {
             connection->server_.receive();
@@ -166,14 +166,14 @@ void UdpServer::Connection::backward_receive() {
     remote_socket_.async_receive_from(
         buffer(backward_buffer_.get() + reserve_header_size_, 
             backward_buffer_size_ - reserve_header_size_), 
-        remote_ep_,
+        remote_endpoint_,
         [connection = boost::intrusive_ptr<Connection>(this)](
             std::error_code ec, size_t size) {
             if (ec) {
                 connection->close();
                 return;
             }
-            connection->timer_.expires_from_now(expire_time_);
+            connection->wait();
             connection->backward_send(size);
         });
 }
@@ -181,23 +181,23 @@ void UdpServer::Connection::backward_receive() {
 void UdpServer::Connection::backward_send(size_t payload_size) {
     wire::AddressHeader *header = nullptr;
     uint8_t *port = backward_buffer_.get() + reserve_header_size_ - 2;
-    if (remote_ep_.address().is_v4()) {
+    if (remote_endpoint_.address().is_v4()) {
         header = reinterpret_cast<wire::AddressHeader *>(
             backward_buffer_.get() + reserve_header_size_ - 7);
         payload_size += 7;
         header->type = wire::AddressType::ipv4;
-        header->ipv4_address = remote_ep_.address().to_v4().to_bytes();
+        header->ipv4_address = remote_endpoint_.address().to_v4().to_bytes();
     } else {
         header = reinterpret_cast<wire::AddressHeader *>(
             backward_buffer_.get() + reserve_header_size_ - 19);
         payload_size += 19;
         header->type = wire::AddressType::ipv4;
-        header->ipv6_address = remote_ep_.address().to_v6().to_bytes();
+        header->ipv6_address = remote_endpoint_.address().to_v6().to_bytes();
     }
-    *port = (uint8_t)(remote_ep_.port() >> 8);
-    *(port + 1) = (uint8_t)(remote_ep_.port() & 0xFF);
+    *port = (uint8_t)(remote_endpoint_.port() >> 8);
+    *(port + 1) = (uint8_t)(remote_endpoint_.port() & 0xFF);
     server_.send(
-        {(uint8_t *)header, payload_size}, client_ep_, 
+        {(uint8_t *)header, payload_size}, client_endpoint_, 
         [connection = boost::intrusive_ptr<Connection>(this)](
             std::error_code ec) {
             if (ec) {
@@ -208,16 +208,22 @@ void UdpServer::Connection::backward_send(size_t payload_size) {
         });
 }
 
-void UdpServer::Connection::setup_timer() {
-    timer_.async_wait([connection = boost::intrusive_ptr<Connection>(this)](
-        const boost::system::error_code &ec) {
-        if (ec != boost::asio::error::operation_aborted) {
+void UdpServer::Connection::wait() {
+    if (server_.options_.connection_timeout ==
+        std::chrono::nanoseconds::zero()) {
+        return;
+    }
+    timer_.expires_after(server_.options_.connection_timeout);
+    timer_.async_wait(
+        [connection = boost::intrusive_ptr<Connection>(this)](
+            std::error_code ec) {
+            if (ec) {
+                return;
+            }
             connection->close();
-        } else if (connection->remote_socket_.is_open()) {
-            connection->setup_timer();
-        }
-    });
+        });
 }
+
 
 void UdpServer::Connection::close() {
     if (remote_socket_.is_open())

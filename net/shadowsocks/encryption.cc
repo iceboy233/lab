@@ -259,9 +259,10 @@ void EncryptedStream::write_payload(
 }
 
 EncryptedDatagram::EncryptedDatagram(
-    udp::socket &socket, const MasterKey &master_key)
+    udp::socket &socket, const MasterKey &master_key, SaltFilter &salt_filter)
     : socket_(socket),
       master_key_(master_key),
+      salt_filter_(salt_filter),
       read_buffer_(std::make_unique<uint8_t[]>(read_buffer_size_)),
       write_buffer_(std::make_unique<uint8_t[]>(write_buffer_size_)) {}
 
@@ -270,41 +271,50 @@ void EncryptedDatagram::receive_from(
         std::error_code, absl::Span<const uint8_t>, 
         const udp::endpoint &)> callback) {
     socket_.async_receive_from(
-        buffer(read_buffer_.get(), read_buffer_size_), ep_,
+        buffer(read_buffer_.get(), read_buffer_size_), endpoint_,
         [this, callback = std::move(callback)](
             std::error_code ec, size_t size) {
             if (ec) {
-                callback(ec, {}, ep_);
+                callback(ec, {}, endpoint_);
                 return;
             }
             size_t salt_size = master_key_.method().salt_size;
             size_t payload_len = size - salt_size - 16;
-            read_key_.emplace(master_key_, read_buffer_.get());
-            if (!read_key_->decrypt(
+            SessionKey read_key(master_key_, read_buffer_.get());
+            if (!read_key.decrypt(
                 {&read_buffer_[salt_size], payload_len},
                 &read_buffer_[size - 16],
                 &read_buffer_[salt_size])) {
                 callback(
                     std::make_error_code(std::errc::result_out_of_range),
-                    {}, ep_);
+                    {}, endpoint_);
                 return;
             }
-            callback({}, {&read_buffer_[salt_size], payload_len}, ep_);
+            if (flags::detect_salt_reuse) {
+                if (!salt_filter_.test_and_insert(
+                    {&read_buffer_[0], master_key_.method().salt_size})) {
+                    callback(
+                        std::make_error_code(std::errc::result_out_of_range),
+                        {}, endpoint_);
+                    return;
+                }
+            }
+            callback({}, {&read_buffer_[salt_size], payload_len}, endpoint_);
         });
 }
 
 void EncryptedDatagram::send_to(
-    absl::Span<const uint8_t> chunk, const udp::endpoint &ep,
+    absl::Span<const uint8_t> chunk, const udp::endpoint &endpoint,
     std::function<void(std::error_code)> callback) {
     const size_t salt_size = master_key_.method().salt_size;
     RAND_bytes(write_buffer_.get(), salt_size);
-    write_key_.emplace(master_key_, write_buffer_.get());
-    write_key_->encrypt(
+    SessionKey write_key(master_key_, write_buffer_.get());
+    write_key.encrypt(
         chunk, &write_buffer_[salt_size],
         &write_buffer_[salt_size + chunk.size()]);
     socket_.async_send_to(
         buffer(write_buffer_.get(), salt_size + chunk.size() + 16), 
-        ep,
+        endpoint,
         [this, callback = std::move(callback)](std::error_code ec, size_t) {
             callback(ec);
         });

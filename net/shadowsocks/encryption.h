@@ -125,26 +125,27 @@ private:
 class EncryptedDatagram {
 public:
     EncryptedDatagram(
-        udp::socket &socket, const MasterKey &master_key);
+        udp::socket &socket,
+        const MasterKey &master_key,
+        SaltFilter &salt_filter);
 
     void receive_from(
         std::function<void(
             std::error_code, absl::Span<const uint8_t>, 
             const udp::endpoint &)> callback);
     void send_to(
-        absl::Span<const uint8_t> chunk, const udp::endpoint &ep,
+        absl::Span<const uint8_t> chunk, const udp::endpoint &endpoint,
         std::function<void(std::error_code)> callback);
 
 private:
     udp::socket &socket_;
     const MasterKey &master_key_;
+    SaltFilter &salt_filter_;
     std::unique_ptr<uint8_t[]> read_buffer_;
     static constexpr size_t read_buffer_size_ = 65535;
     std::unique_ptr<uint8_t[]> write_buffer_;
     static constexpr size_t write_buffer_size_ = 65535;
-    std::optional<SessionKey> read_key_;
-    std::optional<SessionKey> write_key_;
-    udp::endpoint ep_;
+    udp::endpoint endpoint_;
 };
 
 }  // namespace shadowsocks
