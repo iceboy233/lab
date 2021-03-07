@@ -107,7 +107,6 @@ UdpServer::Connection::Connection(
 }
 
 UdpServer::Connection::~Connection() {
-    close();
     server_.client_endpoints_.erase(client_endpoint_);
 }
 
@@ -179,8 +178,10 @@ void UdpServer::Connection::backward_receive() {
 }
 
 void UdpServer::Connection::backward_send(size_t payload_size) {
-    wire::AddressHeader *header = nullptr;
-    uint8_t *port = backward_buffer_.get() + reserve_header_size_ - 2;
+    wire::AddressHeader *header;
+    boost::endian::big_uint16_buf_t *port 
+        = reinterpret_cast<boost::endian::big_uint16_buf_t *>(
+            backward_buffer_.get() + reserve_header_size_ - 2);
     if (remote_endpoint_.address().is_v4()) {
         header = reinterpret_cast<wire::AddressHeader *>(
             backward_buffer_.get() + reserve_header_size_ - 7);
@@ -194,8 +195,7 @@ void UdpServer::Connection::backward_send(size_t payload_size) {
         header->type = wire::AddressType::ipv4;
         header->ipv6_address = remote_endpoint_.address().to_v6().to_bytes();
     }
-    *port = (uint8_t)(remote_endpoint_.port() >> 8);
-    *(port + 1) = (uint8_t)(remote_endpoint_.port() & 0xFF);
+    *port = remote_endpoint_.port();
     server_.send(
         {(uint8_t *)header, payload_size}, client_endpoint_, 
         [connection = boost::intrusive_ptr<Connection>(this)](
@@ -226,8 +226,7 @@ void UdpServer::Connection::wait() {
 
 
 void UdpServer::Connection::close() {
-    if (remote_socket_.is_open())
-        remote_socket_.close();
+    remote_socket_.close();
     timer_.cancel();
 }
 
