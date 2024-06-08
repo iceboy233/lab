@@ -16,8 +16,8 @@ cc_binary(
     deps = [
         "@org_iceboy_trunk//base:flags",
         "@org_iceboy_trunk//base:logging",
+        "@org_iceboy_trunk//io:native-file",
         "@org_iceboy_trunk//io:stream",
-        "@org_iceboy_trunk//io/posix:file",
         "@org_iceboy_trunk//net:asio",
         "@org_iceboy_trunk//net:asio-flags",
         "@org_iceboy_trunk//net:blocking-result",
@@ -46,7 +46,7 @@ cc_binary(
         "@org_iceboy_trunk//base:flags",
         "@org_iceboy_trunk//base:logging",
         "@org_iceboy_trunk//io:file-utils",
-        "@org_iceboy_trunk//io/posix:file",
+        "@org_iceboy_trunk//io:native-file",
         "@org_iceboy_trunk//net:asio",
         "@org_iceboy_trunk//net:blocking-result",
         "@org_iceboy_trunk//net:endpoint",

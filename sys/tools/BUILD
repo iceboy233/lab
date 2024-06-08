@@ -5,6 +5,6 @@ cc_binary(
         "@com_google_absl//absl/strings",
         "@org_iceboy_trunk//base:flags",
         "@org_iceboy_trunk//io:file-utils",
-        "@org_iceboy_trunk//io/posix:file",
+        "@org_iceboy_trunk//io:native-file",
     ]
 )

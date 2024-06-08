@@ -1,6 +1,6 @@
 #include "base/flags.h"
 #include "base/logging.h"
-#include "io/posix/file.h"
+#include "io/native-file.h"
 #include "io/stream.h"
 #include "net/asio.h"
 #include "net/asio-flags.h"
@@ -68,7 +68,7 @@ int main(int argc, char *argv[]) {
     auto executor = io_context.get_executor();
     IcmpClient icmp_client(executor, {});
     steady_timer timer(executor);
-    io::OStream os(io::posix::stdout);
+    io::OStream os(io::std_output());
     int64_t pending_requests = 0;
     if (flags::from.is_v4()) {
         address_v4_iterator first(flags::from.to_v4());

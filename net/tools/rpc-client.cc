@@ -12,7 +12,7 @@
 #include "base/logging.h"
 #include "flatbuffers/idl.h"
 #include "io/file-utils.h"
-#include "io/posix/file.h"
+#include "io/native-file.h"
 #include "net/asio.h"
 #include "net/blocking-result.h"
 #include "net/endpoint.h"
@@ -51,7 +51,7 @@ int main(int argc, char *argv[]) {
     parser.Parse(schema.c_str());
     parser.SetRootType(flags::request_type.c_str());
     std::string request_json;
-    ec = read_to_end(io::posix::stdin, request_json);
+    ec = read_to_end(io::std_input(), request_json);
     if (ec) {
         LOG(fatal) << "read failed: " << ec;
         return 1;
@@ -90,7 +90,7 @@ int main(int argc, char *argv[]) {
                    << std::get<0>(result.args());
         return 1;
     }
-    ec = write(io::posix::stdout, response_json);
+    ec = write(io::std_output(), response_json);
     if (ec) {
         LOG(fatal) << "write failed: " << ec;
         return 1;

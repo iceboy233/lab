@@ -5,7 +5,7 @@
 #include "absl/strings/escaping.h"
 #include "base/flags.h"
 #include "io/file-utils.h"
-#include "io/posix/file.h"
+#include "io/native-file.h"
 
 DEFINE_FLAG(bool, d, false, "Decode.");
 DEFINE_FLAG(bool, url, false, "Use URL encoding.");
@@ -20,7 +20,7 @@ std::error_code encode() {
 
     size_t size;
     do {
-        std::error_code ec = read(io::posix::stdin, src, size);
+        std::error_code ec = read(io::std_input(), src, size);
         if (ec) {
             return ec;
         }
@@ -29,7 +29,7 @@ std::error_code encode() {
         } else {
             absl::WebSafeBase64Escape({src.data(), size}, &dest);
         }
-        ec = write(io::posix::stdout, dest);
+        ec = write(io::std_output(), dest);
         if (ec) {
             return ec;
         }
@@ -44,7 +44,7 @@ std::error_code decode() {
 
     size_t size;
     do {
-        std::error_code ec = read(io::posix::stdin, src, size);
+        std::error_code ec = read(io::std_input(), src, size);
         if (ec) {
             return ec;
         }
@@ -57,7 +57,7 @@ std::error_code decode() {
         if (!success) {
             return make_error_code(std::errc::bad_message);
         }
-        ec = write(io::posix::stdout, dest);
+        ec = write(io::std_output(), dest);
         if (ec) {
             return ec;
         }
