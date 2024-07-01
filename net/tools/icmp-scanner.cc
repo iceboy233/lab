@@ -1,3 +1,9 @@
+#include <cstddef>
+#include <cstdint>
+#include <chrono>
+#include <queue>
+#include <system_error>
+
 #include "base/flags.h"
 #include "base/logging.h"
 #include "io/native-file.h"
@@ -12,40 +18,64 @@ DEFINE_FLAG(net::address, to, {}, "");
 DEFINE_FLAG(int32_t, limit, 256, "");
 DEFINE_FLAG(int32_t, rps, 1000, "");
 DEFINE_FLAG(size_t, size, 0, "");
+DEFINE_FLAG(bool, sort, false, "");
 
 namespace net {
 namespace {
+
+struct Context {
+    std::chrono::steady_clock::time_point start_time;
+    net::address address;
+    bool done = false;
+    std::error_code ec;
+    std::chrono::microseconds duration;
+};
+
+void print(const Context &context, std::ostream &os) {
+    if (context.ec) {
+        if (context.ec == make_error_code(std::errc::timed_out)) {
+            return;
+        }
+        os << context.address << " " << context.ec << std::endl;
+    } else {
+        os << context.address << " " << context.duration.count() << std::endl;
+    }
+}
 
 void request(
     io_context &io_context,
     IcmpClient &icmp_client,
     steady_timer &timer,
-    const icmp::endpoint &endpoint,
-    std::ostream &os,
-    int64_t &pending_requests) {
-    auto start_time = std::chrono::steady_clock::now();
+    const address &address,
+    std::queue<Context> &queue,
+    std::ostream &os) {
+    Context &context = queue.emplace();
+    context.start_time = std::chrono::steady_clock::now();
+    context.address = address;
     timer.expires_at(
-        start_time +
+        context.start_time +
             std::chrono::nanoseconds(std::chrono::seconds(1)) / flags::rps);
-    ++pending_requests;
     icmp_client.request(
-        endpoint,
+        {address, 0},
         std::vector<uint8_t>(flags::size),
-        [address = endpoint.address(), start_time, &os, &pending_requests](
-            std::error_code ec, ConstBufferSpan) {
+        [&context, &queue, &os](std::error_code ec, ConstBufferSpan) {
+            context.done = true;
             if (ec) {
-                if (ec != make_error_code(std::errc::timed_out)) {
-                    LOG(error) << "request failed: " << ec;
-                }
-                --pending_requests;
-                return;
+                context.ec = ec;
+            } else {
+                context.duration =
+                    std::chrono::duration_cast<std::chrono::microseconds>(
+                        std::chrono::steady_clock::now() - context.start_time);
             }
-            auto end_time = std::chrono::steady_clock::now();
-            os << address << " "
-               << std::chrono::duration_cast<std::chrono::microseconds>(
-                      end_time - start_time).count()
-               << std::endl;
-            --pending_requests;
+            if (!flags::sort) {
+                print(context, os);
+            }
+            while (!queue.empty() && queue.front().done) {
+                if (flags::sort) {
+                    print(queue.front(), os);
+                }
+                queue.pop();
+            }
         });
     BlockingResult<std::error_code> wait_result;
     timer.async_wait(wait_result.callback());
@@ -69,23 +99,19 @@ int main(int argc, char *argv[]) {
     IcmpClient icmp_client(executor, {});
     steady_timer timer(executor);
     io::OStream os(io::std_output());
-    int64_t pending_requests = 0;
+    std::queue<Context> queue;
     if (flags::from.is_v4()) {
         address_v4_iterator first(flags::from.to_v4());
         address_v4_iterator last(flags::to.to_v4());
         for (; first != last && flags::limit; ++first, --flags::limit) {
-            request(
-                io_context, icmp_client, timer, {*first, 0}, os,
-                pending_requests);
+            request(io_context, icmp_client, timer, *first, queue, os);
         }
     } else {
         address_v6_iterator first(flags::from.to_v6());
         address_v6_iterator last(flags::to.to_v6());
         for (; first != last && flags::limit; ++first, --flags::limit) {
-            request(
-                io_context, icmp_client, timer, {*first, 0}, os,
-                pending_requests);
+            request(io_context, icmp_client, timer, *first, queue, os);
         }
     }
-    while (pending_requests && io_context.run_one()) {}
+    while (!queue.empty() && io_context.run_one()) {}
 }
