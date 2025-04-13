@@ -41,8 +41,8 @@ cc_binary(
     name = "rpc-client",
     srcs = ["rpc-client.cc"],
     deps = [
-        "@com_github_google_flatbuffers//:flatbuffers",
-        "@com_google_absl//absl/strings",
+        "@abseil-cpp//absl/strings",
+        "@flatbuffers",
         "@org_iceboy_trunk//base:flags",
         "@org_iceboy_trunk//base:logging",
         "@org_iceboy_trunk//io:file-utils",
@@ -59,7 +59,7 @@ cc_binary(
     name = "rpc-relay",
     srcs = ["rpc-relay.cc"],
     deps = [
-        "@com_google_absl//absl/strings",
+        "@abseil-cpp//absl/strings",
         "@org_iceboy_trunk//base:flags",
         "@org_iceboy_trunk//base:logging",
         "@org_iceboy_trunk//net:asio",

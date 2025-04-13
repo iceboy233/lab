@@ -64,10 +64,11 @@ int main(int argc, char *argv[]) {
     rpc::Client::RequestOptions options;
     if (!flags::key.empty()) {
         // TODO(iceboy): Use a better implementation.
-        std::string key_bytes = absl::HexStringToBytes(flags::key);
+        std::string key_bytes;
         security::KeyArray key_array;
-        if (key_bytes.size() != key_array.size()) {
-            LOG(fatal) << "invalid key size";
+        if (!absl::HexStringToBytes(flags::key, &key_bytes) ||
+            key_bytes.size() != key_array.size()) {
+            LOG(fatal) << "invalid key";
             return 1;
         }
         std::copy_n(key_bytes.begin(), key_bytes.size(), key_array.begin());
