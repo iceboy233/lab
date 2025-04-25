@@ -8,3 +8,12 @@ cc_binary(
         "@trunk//io:native-file",
     ],
 )
+
+cc_binary(
+    name = "pointer-chasing-benchmark",
+    srcs = ["pointer-chasing-benchmark.cc"],
+    deps = [
+        "@abseil-cpp//absl/random",
+        "@google_benchmark//:benchmark_main",
+    ],
+)
