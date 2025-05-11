@@ -1,11 +1,11 @@
 #include "base/flags.h"
 #include "base/logging.h"
 #include "net/asio.h"
-#include "net/endpoint.h"
 #include "net/http/server.h"
+#include "net/types/addr-port.h"
 
-DEFINE_FLAG(net::Endpoint, endpoint,
-            net::Endpoint(net::address_v4::loopback(), 80), "");
+DEFINE_FLAG(net::AddrPort, listen,
+            net::AddrPort(net::address_v4::loopback(), 80), "");
 
 int main(int argc, char *argv[]) {
     using namespace net;
@@ -17,7 +17,7 @@ int main(int argc, char *argv[]) {
     io_context io_context;
     Server server(
         io_context.get_executor(),
-        flags::endpoint,
+        flags::listen,
         [](
             const Request &request,
             Response &response,

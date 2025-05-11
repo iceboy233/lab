@@ -5,8 +5,8 @@ cc_binary(
         "@trunk//base:flags",
         "@trunk//base:logging",
         "@trunk//net:asio",
-        "@trunk//net:endpoint",
         "@trunk//net/http:server",
+        "@trunk//net/types:addr-port",
     ],
 )
 
@@ -32,8 +32,8 @@ cc_binary(
         "@trunk//base:flags",
         "@trunk//base:logging",
         "@trunk//net:asio",
-        "@trunk//net:endpoint",
         "@trunk//net/rpc:client",
+        "@trunk//net/types:addr-port",
     ],
 )
 
@@ -49,8 +49,8 @@ cc_binary(
         "@trunk//io:native-file",
         "@trunk//net:asio",
         "@trunk//net:blocking-result",
-        "@trunk//net:endpoint",
         "@trunk//net/rpc:client",
+        "@trunk//net/types:addr-port",
         "@trunk//util:flatbuffers-reflection",
     ],
 )
@@ -63,9 +63,9 @@ cc_binary(
         "@trunk//base:flags",
         "@trunk//base:logging",
         "@trunk//net:asio",
-        "@trunk//net:endpoint",
         "@trunk//net/rpc:client",
         "@trunk//net/rpc:server",
+        "@trunk//net/types:addr-port",
         "@trunk//security:key",
     ],
 )
@@ -76,7 +76,7 @@ cc_binary(
     deps = [
         "@trunk//base:flags",
         "@trunk//net:asio",
-        "@trunk//net:endpoint",
         "@trunk//net/rpc:server",
+        "@trunk//net/types:addr-port",
     ],
 )

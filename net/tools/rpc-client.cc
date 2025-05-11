@@ -15,12 +15,12 @@
 #include "io/native-file.h"
 #include "net/asio.h"
 #include "net/blocking-result.h"
-#include "net/endpoint.h"
 #include "net/rpc/client.h"
+#include "net/types/addr-port.h"
 #include "util/flatbuffers-reflection.h"
 
-DEFINE_FLAG(net::Endpoint, endpoint,
-            net::Endpoint(net::address_v4::loopback(), 1024), "");
+DEFINE_FLAG(net::AddrPort, server,
+            net::AddrPort(net::address_v4::loopback(), 1024), "");
 DEFINE_FLAG(std::string, method, "", "");
 DEFINE_FLAG(std::string, key, "", "");
 DEFINE_FLAG(std::string, schema_file, "", "");
@@ -76,7 +76,7 @@ int main(int argc, char *argv[]) {
     }
     BlockingResult<std::error_code, std::vector<uint8_t>> result;
     rpc_client.request(
-        flags::endpoint, flags::method, request, options, result.callback());
+        flags::server, flags::method, request, options, result.callback());
     result.run(io_context);
     if (std::get<0>(result.args())) {
         LOG(fatal) << "request failed: " << std::get<0>(result.args());

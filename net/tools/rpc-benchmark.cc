@@ -5,11 +5,11 @@
 #include "base/flags.h"
 #include "base/logging.h"
 #include "net/asio.h"
-#include "net/endpoint.h"
 #include "net/rpc/client.h"
+#include "net/types/addr-port.h"
 
-DEFINE_FLAG(net::Endpoint, server_endpoint,
-            net::Endpoint(net::address_v4::loopback(), 1024), "");
+DEFINE_FLAG(net::AddrPort, server,
+            net::AddrPort(net::address_v4::loopback(), 1024), "");
 DEFINE_FLAG(size_t, payload_size, 0, "");
 DEFINE_FLAG(int, depth, 1, "");
 
@@ -48,7 +48,7 @@ private:
 
 BenchmarkClient::BenchmarkClient(rpc::Client &rpc_client)
     : rpc_client_(rpc_client),
-      server_endpoint_(flags::server_endpoint) {}
+      server_endpoint_(flags::server) {}
 
 void BenchmarkClient::request() {
     std::vector<uint8_t> payload(flags::payload_size);
