@@ -1,7 +1,5 @@
 #include <cstdint>
 #include <cstdio>
-#include <fstream>
-#include <sstream>
 #include <string>
 #include <string_view>
 #include <system_error>
@@ -35,8 +33,8 @@ int main(int argc, char *argv[]) {
 
     io_context io_context;
     rpc::Client rpc_client(io_context.get_executor(), {});
-    io::posix::File schema_file;
-    std::error_code ec = schema_file.open(flags::schema_file.c_str(), O_RDONLY);
+    io::NativeFile schema_file;
+    std::error_code ec = io::open(schema_file, flags::schema_file);
     if (ec) {
         LOG(fatal) << "open failed: " << ec;
         return 1;

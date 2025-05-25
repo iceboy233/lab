@@ -19,7 +19,7 @@ bazel_dep(name = "trunk")
 
 git_override(
     module_name = "trunk",
-    commit = "d9d03b506ebb1cf2089dfba27baa1fa936122096",
+    commit = "da238c7c06315de88ad12efc0a8e58bb023350b9",
     remote = "https://github.com/iceboy233/trunk.git",
 )
 
